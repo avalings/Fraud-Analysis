@@ -1,0 +1,87 @@
+library(readr)
+library(tidyverse)
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+library(tinytex)
+
+# Importing the Data
+
+read_fraud <- function(wd = getwd()) {
+  transactions <- list.files(path = wd, pattern = "*.csv", full.names = TRUE)
+  
+  frauddata <- lapply(transactions, function(file) {
+    read_csv(file,
+             col_names = TRUE,
+             col_types = cols(
+               CardType = col_factor(levels = c("Cr", "Dr")),
+               Fraud = col_factor(levels = c("Yes", "No"))
+             ))
+  }) %>% 
+    bind_rows()
+  
+  return(frauddata)
+}
+
+transactions <- read_fraud("/Users/avaangeles/Downloads/FraudData")
+transactions
+
+# Total loss of bank due to fraud
+
+fraudt <- transactions %>% filter(Fraud == "Yes")
+loss <-summarise(fraudt, "Total Loss" = sum(Amount, na.rm = TRUE))
+
+print(loss)
+
+# The bank lost PHP 39,465,197 due to fraud transactions alone.
+
+# Top 4 days with greatest number of fraudulent transactions
+topdays <- fraudt %>%
+  group_by(Date = as.Date(TimeStamp)) %>% 
+summarise(Fraud_Count = n()) %>%
+  arrange(desc(Fraud_Count)) %>%
+  slice_head(n=4)
+
+print(topdays)
+
+# In 2023, the top four days with the most fraudulent transactions are December 24, December 31, December 25, and January 1 respectively, which are all major holidays.
+# This may be attributed to the increased spending during this season, so it is imperative that fraud detection and prevention measures during the holidays, especially in December.
+# These may include requiring additional verification processes when making purchases, or to educate their customers on fraud tactics, whether through email or SNS.
+
+# Visualization of number of fraud transactions per month
+
+permonth <- transactions %>%
+  filter(Fraud == "Yes") %>%
+  mutate(Month = month(TimeStamp, label = TRUE)) %>% 
+  
+  ggplot(aes(x = Month)) + 
+  geom_bar(stat = "count", fill = "navyblue") +
+  labs(title = "Number of Fraud Transactions per Month in 2023",
+       x = "Month",
+       y = "Fraud Transactions") +
+  theme_classic()
+print(permonth)
+
+# The Bar Chart shows that December had the greatest number of fraudulent transactions in 2023. Similar to my earlier recommendation, it is imperative that fraud detection and prevention measures are heavily applied during this month.
+
+# Comparison of Credit VS Debit Fraud
+total_debit <- transactions %>% filter(CardType == "Dr")
+
+total_credit <- transactions %>% filter(CardType == "Cr")
+
+debit_fraud <- transactions %>%
+  filter(Fraud == "Yes", CardType == "Dr") %>%
+  nrow()/nrow(total_debit)
+
+credit_fraud <- transactions %>%
+  filter(Fraud == "Yes", CardType == "Cr") %>%
+  nrow()/nrow(total_credit)
+
+fraud_table <- data.frame(
+  CardType = c("Debit", "Credit"),
+  Probability = c(debit_fraud, credit_fraud)
+)
+
+print(fraud_table)
+
+# With a rate of 0.001%, credit cards are less prone to fraudulent transactions as compared to debit cards. Nonetheless, protection is imperative for all cards regardless, and users of either of the two types must be made aware of common fraud tactic to limit fraud overall.
